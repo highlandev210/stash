@@ -1,0 +1,87 @@
+# ==============================================================================
+# stash - Git Ignore
+# ==============================================================================
+
+# Node / Frontend Build
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.output/
+.vinxi/
+.tanstack/
+.nitro/
+*.tsbuildinfo
+
+# Python / Backend Build & Caches
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+var/
+wheels/
+share/python-wheels/
+.installed.cfg
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite & Local Databases
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# stash Local Project Memory
+.stash/
+.trackle/
+.stash-migration-*/
+
+# Agent-Specific Local Configuration
+.codex/
+.agents/
+
+# Environment Variables, Secrets & Cloud Creds
+.env
+.env.*
+!.env.example
+.aws/
+*.pem
+*.key
+.dev.vars
+.wrangler/
+
+# IDE & Editor Configurations
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.sw[po]
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*

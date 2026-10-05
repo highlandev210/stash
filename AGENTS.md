@@ -1,0 +1,1 @@
+- Keep the product as one front-end workspace with shelf and project states; this preserves the fast, app-like navigation model.

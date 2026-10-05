@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stash-local"
+version = "0.1.0"
+description = "Local project shelf for humans and coding agents"
+requires-python = ">=3.10"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic>=2.10,<3", "sqlalchemy>=2.0,<3", "alembic>=1.14,<2", "typer>=0.15,<1", "httpx>=0.28,<1", "markdown-it-py>=3,<5", "bleach>=6,<7", "tomli>=2; python_version < '3.11'"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+stash = "stash_cli.main:app"
+stash-server = "stash.main:run"
+stash-mcp = "stash.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["backend", "cli"]
+exclude = ["tests", "tests.*"]
+
+[tool.setuptools.package-data]
+stash = ["migrations/*.py", "migrations/versions/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend", "cli"]
