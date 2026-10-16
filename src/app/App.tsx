@@ -19,8 +19,14 @@ export default function App() {
     name: settings.data?.identity || "You",
     kind: "human",
   };
-  const refresh = async () => {
-    await client.invalidateQueries();
+  const refresh = async (id?: string) => {
+    await client.invalidateQueries({
+      predicate: (query) =>
+        ["settings", "projects", "shelf-summary", "candidates"].includes(
+          String(query.queryKey[0]),
+        ) ||
+        (!!id && query.queryKey[1] === id),
+    });
   };
   if (settings.isPending)
     return <main className="p-10 text-sm">Connecting to stash…</main>;
@@ -48,7 +54,7 @@ export default function App() {
             setProjectMode(mode || "existing");
             setProjectId(id);
             void api(`/projects/${id}/opened`, "POST", { actor })
-              .then(refresh)
+              .then(() => refresh(id))
               .catch(() => {});
           }}
         />
@@ -58,7 +64,7 @@ export default function App() {
           id={projectId}
           initialMode={projectMode}
           actor={actor}
-          refresh={refresh}
+          refresh={() => refresh(projectId)}
           onBack={() => {
             setProjectId(null);
             void refresh();

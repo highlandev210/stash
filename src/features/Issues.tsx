@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -232,6 +233,7 @@ function IssueDetail({
     refetchInterval: 5000,
     queryFn: () => api<Entry[]>(`${path}/comments?offset=${commentOffset}`),
   });
+  useUnsavedChanges(!!comment.trim(), pending);
   const issue = query.data;
   return (
     <Panel
@@ -267,7 +269,11 @@ function IssueDetail({
             }}
           />
         ) : (
-          <div className="space-y-6">
+          <div
+            className="space-y-6"
+            data-dirty={!!comment.trim()}
+            data-pending={pending}
+          >
             <div className="flex items-center gap-3">
               <Badge value={issue.status} />
               <span className="text-xs">{label(issue.priority)} priority</span>

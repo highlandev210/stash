@@ -95,6 +95,18 @@ export type Entry = {
   [key: string]: unknown;
 };
 export type ContextData = {
+  resume?: {
+    session: {
+      task: string;
+      created_at: string;
+      updated_at?: string;
+      status: string;
+    };
+    checkpoint: {
+      created_at: string;
+      explanation: { progress: string; next_actions: string; final: boolean };
+    } | null;
+  } | null;
   project: Project;
   issues: Issue[];
   decisions: Entry[];

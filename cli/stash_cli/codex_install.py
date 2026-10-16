@@ -44,11 +44,14 @@ def without_command(hooks,command):
     return hooks
 
 
+def client_version():
+    probe=subprocess.run(['codex','--version'],capture_output=True,text=True,timeout=5)
+    return probe.stdout.strip() if probe.returncode == 0 else None
+
+
 def install(root,server,with_skill=True):
     root=Path(root).resolve(strict=True)
-    probe=subprocess.run(['codex','--version'],capture_output=True,text=True,timeout=5)
-    version=probe.stdout.strip()
-    if probe.returncode or version!='codex-cli 0.160.0':
+    if client_version() != 'codex-cli 0.160.0':
         raise ValueError('This adapter is currently verified against codex-cli 0.160.0; verify another client/version before installation')
     with Runtime(root) as runtime:
         project=runtime.read('project.json')

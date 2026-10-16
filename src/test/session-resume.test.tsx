@@ -1,4 +1,6 @@
 import {
+  act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -55,11 +57,15 @@ const resume = {
   current_observation: observation,
   incomplete_sessions: [session],
 };
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 function mount() {
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
-    let data: unknown = url.endsWith("/resume")
-      ? resume
+    let data: unknown = url.endsWith("/context")
+      ? { resume }
       : url.endsWith("/sessions")
         ? [session]
         : { session, checkpoints: [checkpoint] };
@@ -137,4 +143,41 @@ describe("Checkpoint recovery", () => {
     expect(body.final).toBe(false);
     expect(body.verification_includes_uncommitted).toBeNull();
   });
+});
+
+it("refreshes the visible recovery checkpoint while Context remains open", async () => {
+  vi.useFakeTimers();
+  const fetch = mount();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  expect(screen.getByText(/Filter started/)).toBeVisible();
+  fetch.mockImplementation(
+    async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.endsWith("/context")
+            ? {
+                resume: {
+                  ...resume,
+                  checkpoint: {
+                    ...checkpoint,
+                    explanation: {
+                      ...checkpoint.explanation,
+                      progress: "Agent saved newer progress",
+                    },
+                  },
+                },
+              }
+            : url.endsWith("/sessions")
+              ? [session]
+              : { session, checkpoints: [checkpoint] },
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5100);
+  });
+  expect(screen.getByText(/Agent saved newer progress/)).toBeVisible();
 });

@@ -24,7 +24,10 @@ def test_watcher_independent_grouped_restart_move_exclusions(tmp_path):
         observation=watcher.poll(p)
         assert observation['modified']==['source.py'] and observation['added']==['new.py']
         assert observation['removed']==[] and 'secret' not in str(observation)
+        state_path = root / '.stash/runtime/watcher/state.json'
+        before = state_path.stat().st_mtime_ns
         assert watcher.poll(p) is None # stash changes excluded, no self noise
+        assert state_path.stat().st_mtime_ns == before # no durable write for an unchanged scan
         pid=p.id
     engine.dispose()
     # File changes while server/agent is stopped remain detectable after restart.

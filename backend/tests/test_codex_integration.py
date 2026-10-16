@@ -25,7 +25,8 @@ def payload(event='SessionStart',**changes):
 
 
 @pytest.fixture
-def integration(tmp_path):
+def integration(tmp_path, monkeypatch):
+    monkeypatch.setattr("stash_cli.codex_install.client_version", lambda: "codex-cli 0.160.0")
     root=tmp_path/'project';root.mkdir()
     engine,factory=open_database(tmp_path/'registry.db')
     with factory() as db:
@@ -216,3 +217,10 @@ def test_queued_interrupt_survives_project_move_and_new_session(integration,tmp_
         assert 'Recover after move' in context['markdown']
         assert all(s['status']=='incomplete' for s in c.get(base+'/sessions').json())
         assert c.get(base).json()['id']==pid and status(moved)['pending']==0
+
+
+def test_install_rejects_unverified_client_version(tmp_path, monkeypatch):
+    monkeypatch.setattr("stash_cli.codex_install.client_version", lambda: "codex-cli 0.999.0")
+    with pytest.raises(ValueError, match="verified against"):
+        install(tmp_path, 'http://127.0.0.1:8000', with_skill=False)
+    assert not (tmp_path / '.codex').exists()

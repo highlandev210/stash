@@ -8,6 +8,7 @@ from sqlalchemy import delete, select, update
 from .filesystem import Problem, canonical, observe, relative, SKIP
 from .models import Activity, Issue, Project, Record, Registry, Setting, now, uid
 from .schemas import ProjectPatch
+from pydantic import ValidationError
 from .store import BRIEF, METADATA_FIELDS, FolderStore, digest, json_bytes, markdown_bytes, valid_id
 
 
@@ -71,7 +72,15 @@ def get_project(db, project_id):
     item = db.get(Registry, project_id)
     if not item:
         raise Problem("not_found", "Project not found", 404)
-    project_dict(db, item)
+    # Hydrate metadata needed for scoped operations without scanning every issue,
+    # statting every history file, or writing the shelf database on each read.
+    try:
+        with store_for(item).locked() as store:
+            item.details = store.read_project(item.id)
+        item.availability = "available"
+    except Problem as error:
+        item.details = {**item.summary, "storage_error": error.message}
+        item.availability = "missing" if not Path(item.path).exists() else "inaccessible"
     return item
 
 
@@ -418,25 +427,33 @@ def context_markdown(data):
 
 def export_markdown(data):
     # Include full records/history, not just the concise agent brief.
-    return f"# {data['project']['name']} — complete tracker export\n\nExported {data['exported_at']}. Repository files are not included.\n\n" + "\n\n".join(f"## {key.title()}\n\n```json\n{json.dumps(data[key], indent=2, ensure_ascii=False)}\n```" for key in ["project", "issues", "records", "sessions", "observations", "file_observations", "activity"]) + "\n"
+    return f"# {data['project']['name']} — complete tracker export\n\nExported {data['exported_at']}. Repository files are not included.\n\n" + "\n\n".join(f"## {key.title()}\n\n```json\n{json.dumps(data[key], indent=2, ensure_ascii=False)}\n```" for key in ["project", "issues", "records", "assessments", "sessions", "observations", "file_observations", "activity"]) + "\n"
 
 
 
 
 def save_document(db, project, payload, locks_dir):
-    from .filesystem import write_document, document, scoped
+    from .filesystem import write_document, document, scoped, MAX_BYTES
+    content = payload.content.encode("utf-8")
+    if len(content) > MAX_BYTES:
+        raise Problem("file_too_large", "Document exceeds the size limit")
     # The folder brief and tracker Markdown are coordinated with metadata updates.
     if payload.path.startswith(".stash/"):
-        scoped(project, payload.path, write=True)
-        relative_path = payload.path.removeprefix(".stash/")
+        _, scoped_path = scoped(project, payload.path, write=True)
+        relative_path = scoped_path.relative_to(".stash").as_posix()
         if not relative_path.startswith("docs/"):
             raise Problem("forbidden_path", "Historical decisions/handoffs are read-only through Docs", 403)
         with store_for(project).locked() as store:
-            store.read_project(project.id)
+            current = store.read_project(project.id)
+            if relative_path == BRIEF:
+                try:
+                    ProjectPatch.model_validate({**{k: v for k, v in current.items() if k in ProjectPatch.model_fields}, "path": project.path, "brief": payload.content})
+                except ValidationError:
+                    raise Problem("invalid_brief", "Project brief must be at most 50,000 characters")
             old = store.read(relative_path)
             revision = digest(old) if old is not None else None
             if revision != payload.revision:
                 raise Problem("conflict", "Document changed externally. Reload and compare before saving", 409)
-            store.transaction({relative_path: (old, payload.content.encode("utf-8"))}, new_event(project.id, "document", payload.path, f"Document saved: {payload.path}", payload.actor))
+            store.transaction({relative_path: (old, content)}, new_event(project.id, "document", payload.path, f"Document saved: {payload.path}", payload.actor))
         return document(project, payload.path)
     return write_document(project, payload, locks_dir, on_saved=lambda: event(db, project, "document", payload.path, f"Document saved: {payload.path}", payload.actor))

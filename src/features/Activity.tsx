@@ -23,8 +23,8 @@ export function ActivityView({
   const params = new URLSearchParams({
     actor,
     kind,
-    since: since ? `${since}T00:00:00` : "",
-    until: until ? `${until}T23:59:59.999999` : "",
+    since: since ? new Date(`${since}T00:00:00`).toISOString() : "",
+    until: until ? new Date(`${until}T23:59:59.999`).toISOString() : "",
     offset: String(offset),
   });
   const events = useQuery({

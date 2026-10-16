@@ -3,6 +3,7 @@ import asyncio
 import mimetypes
 import os
 from pathlib import Path
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -311,9 +312,17 @@ def create_app(db_path=None, dist_dir=None, test=False):
 
     @app.get(PREFIX + "/projects/{project_id}/activity")
     def activity(project_id: str, kind: str = "", actor: str = "", since: str = "", until: str = "", limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0), session=Depends(db)):
+        def timestamp(value):
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                # Preserve timezone-free API clients' existing UTC interpretation.
+                return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+            except ValueError:
+                raise Problem("invalid_date", "Activity dates must be ISO 8601 timestamps")
+        start, end = timestamp(since) if since else None, timestamp(until) if until else None
         p = svc.get_project(session, project_id)
         items = svc.activities(session, p)
-        items = [i for i in items if (not kind or i["kind"] == kind) and (not since or i["created_at"] >= since) and (not until or i["created_at"] <= until) and (not actor or i["actor"]["kind"] == actor)]
+        items = [i for i in items if (not kind or i["kind"] == kind) and (start is None or timestamp(i["created_at"]) >= start) and (end is None or timestamp(i["created_at"]) <= end) and (not actor or i["actor"]["kind"] == actor)]
         return {"items": items[offset:offset + limit], "total": len(items)}
 
     @app.get(PREFIX + "/projects/{project_id}/export")

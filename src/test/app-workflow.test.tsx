@@ -50,6 +50,7 @@ const project = (id: string, name: string): Project => ({
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 function mount() {
   const client = new QueryClient({
@@ -105,7 +106,8 @@ function mockApi(initial: Project[]) {
       else if (path.endsWith("/integrations/codex"))
         data = { enabled: false, pending: 0, worker: null };
       else if (path.endsWith("/resume")) data = null;
-      else if (path.endsWith("/sessions")) data = [];
+      else if (path.endsWith("/sessions") || path.endsWith("/assessments"))
+        data = [];
       else if (path.endsWith("/docs"))
         data = {
           files: ["README.md", "docs/setup.md", ".stash/docs/brief.md"],
@@ -353,4 +355,75 @@ it("preserves a human issue draft and its original revision when an agent update
     revision: "original-issue-revision",
     description: "Human draft",
   });
+});
+
+it("keeps a document draft when tab navigation is cancelled", async () => {
+  const p = {
+    ...project("draft", "Draft project"),
+    writable_doc_roots: [".stash/docs"],
+  };
+  mockApi([p]);
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  mount();
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Draft project.*purpose/ }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Docs" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByLabelText("Document draft"), {
+    target: { value: "Unsaved work" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+  expect(confirm).toHaveBeenCalled();
+  expect(screen.getByLabelText("Document draft")).toHaveValue("Unsaved work");
+  confirm.mockReturnValue(true);
+  fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+  expect(screen.queryByLabelText("Document draft")).not.toBeInTheDocument();
+  confirm.mockRestore();
+});
+
+it("shows a newer checkpoint instead of an older legacy handoff in Overview", async () => {
+  const { Overview } = await import("@/features/Overview");
+  const p = project("resume", "Resume project");
+  const client = new QueryClient({
+    defaultOptions: { queries: { staleTime: Infinity } },
+  });
+  client.setQueryData(["context", p.id], {
+    handoffs: [
+      {
+        created_at: "2026-10-03T10:00:00Z",
+        summary: "Old handoff",
+        next_actions: "Old action",
+      },
+    ],
+    resume: {
+      session: {
+        task: "Current task",
+        status: "incomplete",
+        created_at: "2026-10-04T10:00:00Z",
+      },
+      checkpoint: {
+        created_at: "2026-10-04T11:00:00Z",
+        explanation: {
+          progress: "Latest progress",
+          next_actions: "Latest next action",
+          final: false,
+        },
+      },
+    },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <Overview
+        project={p}
+        actor={{ name: "Ben", kind: "human" }}
+        refresh={async () => {}}
+        jump={() => {}}
+        onRemoved={() => {}}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("Latest progress")).toBeVisible();
+  expect(screen.getByText("Latest next action")).toBeVisible();
+  expect(screen.queryByText("Old handoff")).not.toBeInTheDocument();
 });

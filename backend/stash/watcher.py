@@ -1,5 +1,6 @@
 """Opt-in polling observer. Facts about saved files, never task completion."""
 import json
+from datetime import datetime
 from .filesystem import Problem, check_root, allowed_name
 from .models import now, uid
 from .schemas import Actor
@@ -45,6 +46,11 @@ def poll(project):
         removed = sorted(set(previous) - set(hashes)) if old and current['complete'] else []
         retained = hashes if current['complete'] else {**previous, **hashes}
         state = {'fingerprints': retained, 'checked_at': current['captured_at'], 'complete': current['complete'], 'warnings': current['warnings']}
+        if old and not (added or modified or removed) and old.get('complete') == state['complete'] and old.get('warnings') == state['warnings']:
+            # Persist a heartbeat at most once a minute when the baseline is unchanged.
+            elapsed = (datetime.fromisoformat(state['checked_at']) - datetime.fromisoformat(old['checked_at'])).total_seconds()
+            if elapsed < 60:
+                return None
         changes = {STATE: (raw, json_bytes(state))}
         event = None
         value = None

@@ -85,6 +85,20 @@ export function Overview({
     queryFn: () => api<ContextData>(`${projectPath(p.id)}/context`),
   });
   const latest = context.data?.handoffs[0];
+  const resume = context.data?.resume;
+  const checkpoint = resume?.checkpoint;
+  const resumeTime =
+    checkpoint?.created_at ||
+    resume?.session.updated_at ||
+    resume?.session.created_at;
+  const useCheckpoint =
+    !!resumeTime && (!latest || resumeTime >= latest.created_at);
+  const continuation = useCheckpoint
+    ? checkpoint?.explanation.progress || resume?.session.task
+    : latest?.summary;
+  const nextAction = useCheckpoint
+    ? checkpoint?.explanation.next_actions
+    : latest?.next_actions;
   const git = p.observations.git;
   return (
     <>
@@ -149,17 +163,17 @@ export function Overview({
               ) : (
                 <>
                   <p className="mt-3 whitespace-pre-wrap text-sm">
-                    {latest
-                      ? String(latest.summary)
-                      : "No handoff recorded yet."}
+                    {continuation
+                      ? String(continuation)
+                      : "No progress recorded yet."}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {latest && date(latest.created_at)}
+                    {date(useCheckpoint ? resumeTime : latest?.created_at)}
                   </p>
                 </>
               )}
               <Button variant="link" size="sm" onClick={() => jump("Context")}>
-                Open context
+                Continue work
               </Button>
             </section>
             <section className="border-l-2 border-foreground pl-4">
@@ -167,8 +181,9 @@ export function Overview({
                 Next step
               </h2>
               <p className="mt-3 whitespace-pre-wrap text-sm">
-                {p.next_step ||
-                  (latest ? String(latest.next_actions) : "Not recorded")}
+                {nextAction
+                  ? String(nextAction)
+                  : p.next_step || "Not recorded"}
               </p>
             </section>
           </div>

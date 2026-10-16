@@ -1,3 +1,4 @@
+import { confirmNavigation } from "@/hooks/use-unsaved-changes";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw, ExternalLink } from "lucide-react";
@@ -51,7 +52,12 @@ export function Workspace({
   if (!project)
     return (
       <main className="p-8">
-        <Button variant="outline" onClick={onBack}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (confirmNavigation()) onBack();
+          }}
+        >
           Back to shelf
         </Button>
         {query.isPending ? (
@@ -63,6 +69,7 @@ export function Workspace({
     );
   const props = { project, actor, refresh };
   const jump = (next: Tab, record?: string) => {
+    if (!confirmNavigation()) return;
     if (next === "Issues") setTargetIssue(record || null);
     setTargetRecord(next === "Context" ? record || null : null);
     setTargetDoc(next === "Docs" ? record || null : null);
@@ -75,7 +82,9 @@ export function Workspace({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onBack}
+            onClick={() => {
+              if (confirmNavigation()) onBack();
+            }}
             aria-label="Back to projects"
           >
             <ArrowLeft className="size-4" />
@@ -150,8 +159,9 @@ export function Workspace({
         {error != null && <ErrorNotice error={error} />}
         {project.availability !== "available" && (
           <div className="mb-5 rounded border bg-muted p-4 text-sm">
-            Directory {project.availability}. Tracker records are retained.
-            Update its path in Overview if it moved.
+            {project.availability === "missing"
+              ? "Project folder is missing. Update its path in Overview if it moved."
+              : "Project records are inaccessible. Check the storage error below and repair permissions or invalid records before retrying."}
             <p className="mt-1 text-xs text-muted-foreground">
               {project.storage_error || project.observations.error}
             </p>

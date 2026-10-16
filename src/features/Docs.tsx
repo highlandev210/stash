@@ -1,3 +1,4 @@
+import { confirmDiscard, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
@@ -26,6 +27,8 @@ export function Docs({
     content: string;
     revision: string;
   } | null>(null);
+  const [originalContent, setOriginalContent] = useState("");
+  const dirty = !!draft && draft.content !== originalContent;
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
@@ -47,6 +50,7 @@ export function Docs({
     enabled: !!path,
     refetchInterval: 10000,
   });
+  useUnsavedChanges(dirty, pending);
   const writable = project.writable_doc_roots.some(
     (root) => path === root || path.startsWith(`${root}/`),
   );
@@ -67,7 +71,10 @@ export function Docs({
       if (resolved.origin !== base.origin || !resolved.pathname.endsWith(".md"))
         return;
       const destination = decodeURIComponent(resolved.pathname.slice(1));
-      if (isstashNote(destination)) setSelected(destination);
+      if (isstashNote(destination) && confirmDiscard(dirty, pending)) {
+        setDraft(null);
+        setSelected(destination);
+      }
     } catch {
       /* invalid document link */
     }
@@ -111,11 +118,7 @@ export function Docs({
             files={files}
             selected={path}
             onSelect={(file) => {
-              if (
-                draft &&
-                !window.confirm("Discard the unsaved document draft?")
-              )
-                return;
+              if (!confirmDiscard(dirty, pending)) return;
               setDraft(null);
               setSelected(file);
               setError(null);
@@ -145,6 +148,8 @@ export function Docs({
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    if (!confirmDiscard(dirty, pending)) return;
+                    setOriginalContent(doc.data!.content);
                     setDraft({ ...doc.data! });
                     setError(null);
                   }}
@@ -170,6 +175,7 @@ export function Docs({
               )}
               <textarea
                 aria-label="Document draft"
+                disabled={pending}
                 className="stash-input min-h-96 font-mono"
                 value={draft.content}
                 onChange={(e) =>
@@ -201,7 +207,12 @@ export function Docs({
                 >
                   {pending ? "Saving…" : "Save"}
                 </Button>
-                <Button variant="outline" onClick={() => setDraft(null)}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (confirmDiscard(dirty, pending)) setDraft(null);
+                  }}
+                >
                   Discard draft
                 </Button>
                 {doc.data && doc.data.revision !== draft.revision && (

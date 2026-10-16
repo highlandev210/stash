@@ -43,12 +43,12 @@ def validate_time(value):
 
 
 def observe_repository(root, include_git=True):
-    root = Path(root)
+    root = Path(root).resolve()
     warnings = []
-    env = {**os.environ, 'GIT_OPTIONAL_LOCKS': '0'}
+    env = {'PATH': os.environ.get('PATH', ''), 'HOME': str(Path.home()), 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_OPTIONAL_LOCKS': '0', 'GIT_TERMINAL_PROMPT': '0'}
     def git(*args):
         try:
-            result = subprocess.run(['git', '-C', str(root), *args], capture_output=True, timeout=5, env=env)
+            result = subprocess.run(['git', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', str(root), *args], capture_output=True, timeout=5, env=env)
             return result.stdout.decode('utf-8', errors='replace').rstrip('\n') if result.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired):
             warnings.append('Git command unavailable or timed out')

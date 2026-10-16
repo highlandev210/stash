@@ -1,3 +1,4 @@
+import { confirmDiscard, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, projectPath } from "@/lib/api/client";
@@ -59,11 +60,25 @@ export function Assessment({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const inputState = JSON.stringify({ mode, goal, requirements });
+  const [savedInputs, setSavedInputs] = useState(inputState);
+  const selection = JSON.stringify({ fields, issues, watcher });
+  const [savedSelection, setSavedSelection] = useState(selection);
+  const dirty =
+    !done &&
+    (inputState !== savedInputs ||
+      !!analysis.trim() ||
+      (!!report &&
+        (JSON.stringify(edits) !== JSON.stringify(report.proposed) ||
+          selection !== savedSelection)));
+  useUnsavedChanges(dirty, busy);
   const toggle = (items: string[], value: string) =>
     items.includes(value)
       ? items.filter((x) => x !== value)
       : [...items, value];
   const inspect = async (runChecks: string[] = []) => {
+    if (report && !confirmDiscard(dirty)) return;
     setBusy(true);
     setError(null);
     setDone(false);
@@ -79,14 +94,21 @@ export function Assessment({
         actor,
       });
       setReport(data);
+      setSavedInputs(inputState);
       setEdits(data.proposed);
       setAnalysis("");
       setIssues([]);
       setChecks([]);
-      setFields(
-        Object.keys(data.proposed).filter(
-          (key) => !project[key as keyof typeof project],
-        ),
+      const defaultFields = Object.keys(data.proposed).filter(
+        (key) => !project[key as keyof typeof project],
+      );
+      setFields(defaultFields);
+      setSavedSelection(
+        JSON.stringify({
+          fields: defaultFields,
+          issues: [],
+          watcher,
+        }),
       );
       await history.refetch();
     } catch (e) {
@@ -95,6 +117,21 @@ export function Assessment({
       setBusy(false);
     }
   };
+  if (
+    !expanded &&
+    !report &&
+    history.data?.some((item) => item.status === "accepted")
+  )
+    return (
+      <section className="mb-6 flex items-center justify-between rounded-lg border bg-card p-5">
+        <p className="text-sm text-muted-foreground">
+          Project initialized. Reassess when its goal or code changes.
+        </p>
+        <Button size="sm" variant="outline" onClick={() => setExpanded(true)}>
+          Reassess project
+        </Button>
+      </section>
+    );
   return (
     <section className="mb-6 space-y-4 rounded-lg border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -424,6 +461,14 @@ export function Assessment({
                   size="sm"
                   variant="ghost"
                   onClick={() => {
+                    if (!confirmDiscard(dirty, busy)) return;
+                    setSavedInputs(
+                      JSON.stringify({
+                        mode: r.mode,
+                        goal: r.goal,
+                        requirements: r.requirements.join("\n"),
+                      }),
+                    );
                     setReport(r);
                     setEdits(r.proposed);
                     setGoal(r.goal);
@@ -431,6 +476,16 @@ export function Assessment({
                     setRequirements(r.requirements.join("\n"));
                     setFields([]);
                     setIssues([]);
+                    setChecks([]);
+                    setWatcher(true);
+                    setAnalysis("");
+                    setSavedSelection(
+                      JSON.stringify({
+                        fields: [],
+                        issues: [],
+                        watcher: true,
+                      }),
+                    );
                     setDone(r.status === "accepted");
                   }}
                 >

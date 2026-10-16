@@ -90,15 +90,19 @@ export function SessionResume({
   const shownHistoryId = historyId || targetSessionId;
   const base = projectPath(projectId);
   const resume = useQuery({
-    queryKey: ["resume", projectId],
-    queryFn: () => api<ResumeData | null>(`${base}/resume`),
+    queryKey: ["context", projectId],
+    refetchInterval: 5000,
+    queryFn: () => api<{ resume: ResumeData | null }>(`${base}/context`),
+    select: (context) => context.resume,
   });
   const sessions = useQuery({
     queryKey: ["sessions", projectId],
+    refetchInterval: 5000,
     queryFn: () => api<Session[]>(`${base}/sessions`),
   });
   const history = useQuery({
     queryKey: ["session", projectId, shownHistoryId],
+    refetchInterval: 5000,
     queryFn: () =>
       api<{ session: Session; checkpoints: Checkpoint[] }>(
         `${base}/sessions/${shownHistoryId}`,

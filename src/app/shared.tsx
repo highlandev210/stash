@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { confirmDiscard, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Check, Clipboard, Folder, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,8 +141,14 @@ export function Panel({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const content = useRef<HTMLDivElement>(null);
+  const close = () => {
+    const dirty = !!content.current?.querySelector('[data-dirty="true"]');
+    const pending = !!content.current?.querySelector('[data-pending="true"]');
+    if (confirmDiscard(dirty, pending)) onClose();
+  };
   return (
-    <Sheet open onOpenChange={(open) => !open && onClose()}>
+    <Sheet open onOpenChange={(open) => !open && close()}>
       <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
         <SheetHeader className="border-b p-6">
           <SheetTitle>{title}</SheetTitle>
@@ -149,7 +156,9 @@ export function Panel({
             {description || "Changes are saved to your local stash records."}
           </SheetDescription>
         </SheetHeader>
-        <div className="p-6">{children}</div>
+        <div ref={content} className="p-6">
+          {children}
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -185,8 +194,11 @@ export function RecordForm({
       ]),
     ),
   );
+  const [original] = useState(draft);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(original);
   const [error, setError] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
+  useUnsavedChanges(dirty, pending);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setPending(true);
@@ -213,7 +225,12 @@ export function RecordForm({
     }
   };
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form
+      onSubmit={submit}
+      className="space-y-5"
+      data-dirty={dirty}
+      data-pending={pending}
+    >
       {fields.map((f) => (
         <label key={f.name} className="block space-y-2">
           <span className="text-xs font-medium">
@@ -264,7 +281,9 @@ export function RecordForm({
         <Button
           type="button"
           variant="outline"
-          onClick={onClose}
+          onClick={() => {
+            if (confirmDiscard(dirty, pending)) onClose();
+          }}
           disabled={pending}
         >
           Cancel
